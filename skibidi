@@ -1,0 +1,144 @@
+#!/bin/bash
+# repeat_insult.sh — harmless local repeater (NO NETWORK)
+# chmod +x repeat_insult.sh
+# ./repeat_insult.sh
+
+# colors
+C_OK="\e[32m"
+C_WARN="\e[33m"
+C_RESET="\e[0m"
+
+# trap to handle Ctrl+C in loops and return to prompt
+stop_requested=0
+trap 'stop_requested=1' SIGINT
+
+print_line() {
+  local name="$1"
+  local adj="$2"
+  local count="$3"
+  if [[ "$color_mode" == "single" ]]; then
+    printf "%b" "\e[${color_code}m[${count}] ${name} is ${adj}${C_RESET}\n"
+  else
+    # rainbow: cycle through colors array and print one line for each color step
+    for c in "${colors[@]}"; do
+      printf "%b" "\e[${c}m[${count}] ${name} is ${adj}${C_RESET}\n"
+    done
+  fi
+}
+
+while true; do
+  echo
+  read -p "Enter a name (or 'exit' to quit): " name
+  if [[ -z "$name" ]]; then
+    echo -e "${C_WARN}No name entered — try again.${C_RESET}"
+    continue
+  fi
+  case "$name" in
+    exit|quit) echo -e "${C_WARN}Bye.${C_RESET}"; exit 0 ;;
+  esac
+
+  read -p "Enter an adjective (e.g. dumb, awesome, sleepy): " adj
+  if [[ -z "$adj" ]]; then
+    echo -e "${C_WARN}No adjective entered — using 'silly' by default.${C_RESET}"
+    adj="silly"
+  fi
+
+  # choose printing method
+  echo
+  echo "Choose printing method:"
+  echo "  1) yes (very spammy, prints VERY fast)"
+  echo "  2) echo loop (recommended: readable and controllable)"
+  read -p "Enter 1 or 2: " method
+
+  # choose repetition mode
+  echo
+  echo "Choose repetition mode:"
+  echo "  1) Fixed number of repeats"
+  echo "  2) Infinite (press Ctrl+C to stop and return)"
+  read -p "Enter 1 or 2: " mode
+
+  if [[ "$mode" == "1" ]]; then
+    read -p "How many repeats? " reps
+    if ! [[ "$reps" =~ ^[0-9]+$ ]] || (( reps < 1 )); then
+      echo -e "${C_WARN}Invalid number, using 5 repeats.${C_RESET}"
+      reps=5
+    fi
+  fi
+
+  # choose color mode
+  echo
+  echo "Color options:"
+  echo "  1) Single color"
+  echo "  2) Rainbow"
+  read -p "Enter 1 or 2: " col_choice
+  if [[ "$col_choice" == "1" ]]; then
+    color_mode="single"
+    echo "Pick a color:"
+    echo "  1) Red"
+    echo "  2) Green"
+    echo "  3) Yellow"
+    echo "  4) Blue"
+    echo "  5) Magenta"
+    echo "  6) Cyan"
+    read -p "Enter 1-6: " cnum
+    case "$cnum" in
+      1) color_code=31 ;;
+      2) color_code=32 ;;
+      3) color_code=33 ;;
+      4) color_code=34 ;;
+      5) color_code=35 ;;
+      6) color_code=36 ;;
+      *) color_code=37 ;; # white
+    esac
+  else
+    color_mode="rainbow"
+    colors=(31 32 33 34 35 36)
+  fi
+
+  # run selected method
+  if [[ "$method" == "1" ]]; then
+    # method: yes
+    msg="${name} is ${adj}"
+    if [[ "$mode" == "1" ]]; then
+      yes "$msg" | head -n "$reps"
+    else
+      echo -e "${C_WARN}Starting infinite 'yes' printing. Press Ctrl+C to stop and return.${C_RESET}"
+      stop_requested=0
+      yes "$msg" & yes_pid=$!
+      while true; do
+        if (( stop_requested )); then
+          kill "$yes_pid" 2>/dev/null || true
+          wait "$yes_pid" 2>/dev/null || true
+          stop_requested=0
+          echo -e "${C_WARN}Stopped. Returning to prompt.${C_RESET}"
+          break
+        fi
+        sleep 0.2
+      done
+    fi
+
+  else
+    # method: echo loop
+    if [[ "$mode" == "1" ]]; then
+      for ((i=1;i<=reps;i++)); do
+        print_line "$name" "$adj" "$i"
+        sleep 0.15
+      done
+    else
+      echo -e "${C_WARN}Starting infinite echo loop. Press Ctrl+C to stop and return.${C_RESET}"
+      stop_requested=0
+      i=1
+      while true; do
+        if (( stop_requested )); then
+          stop_requested=0
+          echo -e "${C_WARN}Stopped. Returning to prompt.${C_RESET}"
+          break
+        fi
+        print_line "$name" "$adj" "$i"
+        ((i++))
+        sleep 0.15
+      done
+    fi
+  fi
+
+done
